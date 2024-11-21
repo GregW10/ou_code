@@ -2,16 +2,16 @@
 
 echo "Downloading stuff..."
 
-if ! curl -O -L 'https://veggiebucket.ams3.digitaloceanspaces.com/treewatch_data.tar.gz.enc.sha512'; then
+if ! curl -O -L 'https://veggiebucket.ams3.digitaloceanspaces.com/ou_stuff/treewatch_data.tar.gz.enc.sha512'; then
 	echo "Download failed of SHA-512 checksum of encrypted file failed.."
 fi
 
-if ! curl -O -L 'http://veggiebucket.ams3.digitaloceanspaces.com/treewatch_data.tar.gz.sha512.enc'; then
+if ! curl -O -L 'http://veggiebucket.ams3.digitaloceanspaces.com/ou_stuff/treewatch_data.tar.gz.sha512.enc'; then
 	echo "Download failed of encrypted SHA-512 checksum of original file."
 	exit 1
 fi
 
-if ! curl -O -L 'http://veggiebucket.ams3.digitaloceanspaces.com/treewatch_data.tar.gz.enc'; then
+if ! curl -O -L 'http://veggiebucket.ams3.digitaloceanspaces.com/ou_stuff/treewatch_data.tar.gz.enc'; then
 	echo "Download of encrypted data failed."
 	exit 1
 fi

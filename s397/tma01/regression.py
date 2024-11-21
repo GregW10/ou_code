@@ -125,20 +125,48 @@ def main():
     simtemp = simdat["Temperature (degC)"].to_numpy()
     simhum = simdat["Relative Humidity (%)"].to_numpy()
     simrad = simdat["Radiation (Wm-2)"].to_numpy()
+    simdatsum = {"temperature": {"mean": np.mean(simtemp), "std": np.std(simtemp), "min": np.min(simtemp), "max": np.max(simtemp)},
+                 "humidity": {"mean": np.mean(simhum), "std": np.std(simhum), "min": np.min(simhum), "max": np.max(simhum)},
+                 "radiation": {"mean": np.mean(simrad), "std": np.std(simrad), "min": np.min(simrad), "max": np.max(simrad)}}
+    with open("simulated_data_summary.json", "w") as f:
+        json.dump(simdatsum, f, indent=4)
     os.makedirs(args.sim_out_dir, exist_ok=True)
     if not args.sim_out_dir.endswith("/"):
         args.sim_out_dir += "/"
     NaNs = np.empty(simtemp.shape)
     NaNs[:] = np.nan
+    simsum = {}
+    nope = lambda arr: arr.shape[0] == 0 or np.any(np.isnan(arr))
     for year, months_dict in zip(fitted.keys(), fitted.values()):
+        simsum[year] = {}
         for month, models_dict in zip(months_dict.keys(), months_dict.values()):
             tempsap_pred = (simtemp*models_dict["Temperature-Sapflow"]["slope"] + models_dict["Temperature-Sapflow"]["intercept"]) if "Temperature-Sapflow" in models_dict else NaNs
             humsap_pred = (simhum*models_dict["Humidity-Sapflow"]["slope"] + models_dict["Humidity-Sapflow"]["intercept"]) if "Humidity-Sapflow" in models_dict else NaNs
             radsap_pred = (simrad*models_dict["Radiation-Sapflow"]["slope"] + models_dict["Radiation-Sapflow"]["intercept"]) if "Radiation-Sapflow" in models_dict else NaNs
-            with open(f"{args.sim_out_dir}{month}{year}.csv", "w") as f:
-                f.write("Temperature-Pred. Sapflow (l day-1),Humidity-Pred. Sapflow (l day-1),Radiation-Pred. Sapflow (l day-1)\n")
-                for t, h, r in zip(tempsap_pred, humsap_pred, radsap_pred):
-                    f.write(f"{'' if t != t else t},{'' if h != h else h},{'' if r != r else r}\n")
+            simsum[year][month] = {}
+            if not nope(tempsap_pred):
+                with open(f"{args.sim_out_dir}{month}{year}_temp-pred-sapflow.csv", "w") as f:
+                    f.write("Temperature (degC), Predicted Sapflow (l day-1)\n")
+                    for t, s in zip(simtemp, tempsap_pred):
+                        f.write(f"{t},{s}\n")
+                simsum[year][month].update({"temperature-predicted-sapflow": {"mean": np.mean(tempsap_pred), "std": np.std(tempsap_pred),
+                                                                  "min": np.min(tempsap_pred), "max": np.max(tempsap_pred), "total": np.sum(tempsap_pred)}})
+            if not nope(humsap_pred):
+                with open(f"{args.sim_out_dir}{month}{year}_hum-pred-sapflow.csv", "w") as f:
+                    f.write("Relative Humidity (%), Predicted Sapflow (l day-1)\n")
+                    for h, s in zip(simhum, humsap_pred):
+                        f.write(f"{h},{s}\n")
+                simsum[year][month].update({"humidity-predicted-sapflow": {"mean": np.mean(humsap_pred), "std": np.std(humsap_pred),
+                                                               "min": np.min(humsap_pred), "max": np.max(humsap_pred), "total": np.sum(humsap_pred)}})
+            if not nope(radsap_pred):
+                with open(f"{args.sim_out_dir}{month}{year}_rad-pred-sapflow.csv", "w") as f:
+                    f.write("Radiation (W m^-2), Predicted Sapflow (l day-1)\n")
+                    for r, s in zip(simrad, radsap_pred):
+                        f.write(f"{r},{s}\n")
+                simsum[year][month].update({"radiation-predicted-sapflow": {"mean": np.mean(radsap_pred), "std": np.std(radsap_pred),
+                                                                "min": np.min(radsap_pred), "max": np.max(radsap_pred), "total": np.sum(radsap_pred)}})
+    with open("simulated_sapflow_summary.json", "w") as f:
+        json.dump(simsum, f, indent=4)
     
     
 

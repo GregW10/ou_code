@@ -3,6 +3,8 @@
 import sys
 import math
 import json
+import hashlib
+import requests
 import argparse
 import numpy as np
 import pandas as pd
@@ -26,6 +28,33 @@ def replace_chars(s: str):
     return res
 
 
+def download(which: int):
+    endpoint = f"https://veggiebucket.ams3.digitaloceanspaces.com/ou_stuff/s397/tma02/phenology_recPeriod{which}.csv"
+    endpoint_sha512 = endpoint + ".sha512"
+    content = requests.get(endpoint).content
+    hr = requests.get(endpoint_sha512).text.split()[0]
+    hc = hashlib.sha512(content).hexdigest()
+    if hr != hc:
+        print("Error: sha-512 hash of the downloaded file \"{endpoint}\" does not match true sha-512 hash.")
+    with open(f"phenology_recPeriod{which}.csv", "wb") as f:
+        f.write(content)
+
+
+def write_summary(df: pd.DataFrame, recp: int):
+    results = {}
+    species = df["Species"]#.dropna()
+    unique = list(species.unique())
+    dunique = {}
+    for spec in unique:
+        dunique[spec] = species[species == spec].shape[0]
+    results["species counts"] = {spec: num for spec, num in sorted(dunique.items(), key=lambda it: it[1], reverse=True)}
+    for label in ["Latitude", "Longitude", "Altitude", "Tree diameter (cm)", "Urbanisation index", "Stand density index", "Canopy index", "Phenological index"]:
+        quantity = df[label].dropna().to_numpy()
+        results[label.lower()] = {"N": quantity.shape[0], "mean": np.mean(quantity), "std": np.std(quantity)}
+    with open(f"overall_summary_recPeriod{recp}.json", "w") as f:
+        json.dump(results, f, indent=4)
+
+
 def main():
     parser = argparse.ArgumentParser(prog="Phenology Analyser")
     parser.add_argument("fname")
@@ -34,6 +63,14 @@ def main():
     parser.add_argument("-r", "--recp", default=1, type=int)
     parser.add_argument("-s", "--std", action="store_true")
     args = parser.parse_args()
+    if args.fname == "/1":
+        download(1)
+        args.fname = "phenology_recPeriod1.csv"
+        args.recp = 1
+    elif args.fname == "/2":
+        download(2)
+        args.fname = "phenology_recPeriod2.csv"
+        args.recp = 2
     org = args.species
     args.species = args.species.lower()
     resname = f"results_{replace_chars(args.species)}_" + ".".join(args.fname.split('.')[0:-1]) + ".json"
@@ -112,6 +149,7 @@ def main():
     with open(resname, "w") as r:
         json.dump(results, r, indent=4)
     #####################################################
+    write_summary(df, args.recp)
     if not args.plot:
         sys.exit(0)
     ##################################################### PLOTTING BELOW
@@ -168,6 +206,7 @@ def main():
     ax.scatter(lat_arr, cc)
     lmin = np.min(lat_arr)
     lmax = np.max(lat_arr)
+    print(f"min. lat: {lmin}, max. lat: {lmax}")
     ax.plot([lmin, lmax],
             [regres.params[1]*lmin + regres.params[0],
              regres.params[1]*lmax + regres.params[0]],
@@ -177,8 +216,9 @@ def main():
     ax.set_title("Canopy Cover Index vs Latitude in \\textit{" + args.species + "}\n"
                  f"During Recording Period {args.recp}")
     ax.legend()
-    fig.savefig(f"latCCI_plot_{replace_chars(args.species)}_" + ".".join(args.fname.split('.')[0:-1]) + ".pddddf")
+    fig.savefig(f"latCCI_plot_{replace_chars(args.species)}_" + ".".join(args.fname.split('.')[0:-1]) + ".pdf")
     # plt.show()
+    ##########################################################################
 
 
 

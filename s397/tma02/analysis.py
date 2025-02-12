@@ -13,6 +13,15 @@ import matplotlib.pyplot as plt
 import statsmodels.tools.tools as smtt
 import statsmodels.regression.linear_model as smrl
 
+inst = isinstance
+
+
+class encoder(json.JSONEncoder):
+    def default(self, ob):
+        if inst(ob, np.int64):
+            return int(ob)
+        return super().default(ob)
+
 
 def replace_chars(s: str):
     if len(s) == 0:
@@ -50,9 +59,10 @@ def write_summary(df: pd.DataFrame, recp: int):
     results["species counts"] = {spec: num for spec, num in sorted(dunique.items(), key=lambda it: it[1], reverse=True)}
     for label in ["Latitude", "Longitude", "Altitude", "Tree diameter (cm)", "Urbanisation index", "Stand density index", "Canopy index", "Phenological index"]:
         quantity = df[label].dropna().to_numpy()
-        results[label.lower()] = {"N": quantity.shape[0], "mean": np.mean(quantity), "std": np.std(quantity)}
+        results[label.lower()] = {"N": quantity.shape[0], "mean": np.mean(quantity), "std": np.std(quantity),
+                                  "min": np.min(quantity), "max": np.max(quantity)}
     with open(f"overall_summary_recPeriod{recp}.json", "w") as f:
-        json.dump(results, f, indent=4)
+        json.dump(results, f, indent=4, cls=encoder)
 
 
 def main():

@@ -69,7 +69,7 @@ def main():
     parser = argparse.ArgumentParser(prog="Phenology Analyser")
     parser.add_argument("fname")
     parser.add_argument("-p", "--plot", action="store_true")
-    parser.add_argument("--species", default="quercus robur")
+    parser.add_argument("--species", default="Quercus robur")
     parser.add_argument("-r", "--recp", default=1, type=int)
     parser.add_argument("-s", "--std", action="store_true")
     args = parser.parse_args()
@@ -174,7 +174,7 @@ def main():
         urb_cci_means[urb_idx] = np.mean(cci_arr)
         if args.std:
             urb_cci_stds[urb_idx] = np.std(cci_arr)
-        print(f"Mean: {np.mean(cci_arr)}, std: {np.std(cci_arr)}, min: {np.min(cci_arr)}, max: {np.max(cci_arr)}")
+        # print(f"Mean: {np.mean(cci_arr)}, std: {np.std(cci_arr)}, min: {np.min(cci_arr)}, max: {np.max(cci_arr)}")
     # print(urb_cci_means)
     fig, ax = plt.subplots()
     ax.bar(urb_cci_means.keys(), urb_cci_means.values())
@@ -183,7 +183,7 @@ def main():
         ax.errorbar(urb_cci_means.keys(), urb_cci_means.values(),
                     yerr=urb_cci_stds.values(), fmt="none", color="red", capsize=5.0)
     ax.set_xlabel("Urbanisation Index")
-    ax.set_ylabel("Mean Canopy Cover Index")
+    ax.set_ylabel("Mean Canopy Cover Index ($\\%$)")
     ax.set_title("Mean Canopy Cover Index vs Urbanisation Index in \\textit{" + args.species + "}\n"
                  f"During Recording Period {args.recp}")
     fig.savefig(f"urbCCI_plot_{replace_chars(args.species)}_" + ".".join(args.fname.split('.')[0:-1]) + ".pdf")
@@ -197,7 +197,7 @@ def main():
         sden_cci_means[sden_idx] = np.mean(cci_arr)
         if args.std:
             sden_cci_stds[sden_idx] = np.std(cci_arr)
-        print(f"Mean: {np.mean(cci_arr)}, std: {np.std(cci_arr)}, min: {np.min(cci_arr)}, max: {np.max(cci_arr)}")
+        # print(f"Mean: {np.mean(cci_arr)}, std: {np.std(cci_arr)}, min: {np.min(cci_arr)}, max: {np.max(cci_arr)}")
     # print(urb_cci_means)
     fig, ax = plt.subplots()
     ax.bar(sden_cci_means.keys(), sden_cci_means.values())
@@ -206,7 +206,7 @@ def main():
         ax.errorbar(sden_cci_means.keys(), sden_cci_means.values(),
                     yerr=sden_cci_stds.values(), fmt="none", color="red", capsize=5.0)
     ax.set_xlabel("Stand Density Index")
-    ax.set_ylabel("Mean Canopy Cover Index")
+    ax.set_ylabel("Mean Canopy Cover Index ($\\%$)")
     ax.set_title("Mean Canopy Cover Index vs Stand Density Index in \\textit{" + args.species + "}\n"
                  f"During Recording Period {args.recp}")
     fig.savefig(f"standDensityCCI_plot_{replace_chars(args.species)}_" + ".".join(args.fname.split('.')[0:-1]) + ".pdf")
@@ -222,7 +222,7 @@ def main():
              regres.params[1]*lmax + regres.params[0]],
             color="red", label="Line of best fit")
     ax.set_xlabel("Latitude ($\\degree$)")
-    ax.set_ylabel("Canopy Cover Index")
+    ax.set_ylabel("Canopy Cover Index ($\\%$)")
     ax.set_title("Canopy Cover Index vs Latitude in \\textit{" + args.species + "}\n"
                  f"During Recording Period {args.recp}")
     ax.legend()

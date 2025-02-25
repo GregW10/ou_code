@@ -1,2 +1,6 @@
 .idea/
 s397/tma02/links/
+
+*.csv
+*.json
+*.png

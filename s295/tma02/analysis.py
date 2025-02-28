@@ -39,8 +39,8 @@ def lipid_ug_per_mg_tissue(conc, vol=edson_vol, mass=standard_mass):
     return (conc*vol/mass)*1_000 # ug/mg
 
 
-def isnormal(arr, p=0.05):
-    return bool(spstat.shapiro(arr)[1] > p)
+# def isnormal(arr, p=0.05):
+#     return bool(spstat.shapiro(arr)[1] > p)
 
 
 def main():
@@ -51,6 +51,7 @@ def main():
     parser.add_argument("-u", "--upload", action="store_true")
     parser.add_argument("-p", "--plot", action="store_true")
     parser.add_argument("-q", "--quiet", action="store_true")
+    parser.add_argument("--shapiro-pvalue", "--shapiro-pval", "--spval", default=0.05, type=float)
     args = parser.parse_args()
     if args.quiet:
         pfunc = lambda x, *args: None
@@ -59,6 +60,8 @@ def main():
     j = requests.get(f"{veg}/info.json").json()
     pfunc(j)
     grid_area = float(j["microscope"]["grid-area"]["value"])*10**int(j["microscope"]["grid-area"]["exponent"])
+    pixel_size = int(j["microscope"]["pixel-size"]["numerator"])/int(j["microscope"]["pixel-size"]["denominator"])
+    pfunc(f"Pixel size: {pixel_size} m")
     fat_density = float(j["adipose-tissue-density"])
     pfunc(f"Grid area = {grid_area} m^2")
     # ################################################## CALCULATE MEAN CELL VALUES AND CELL DENSITY
@@ -121,21 +124,21 @@ def main():
                                               "std": df["predicted_concentration(mg/ml)"].std(),
                                               "SEM": df["predicted_concentration(mg/ml)"].sem(),
                                               "units": "mg/ml",
-                                              "is-normal(p>0.05)": isnormal(df["predicted_concentration(mg/ml)"])
+                                              "shapiro-p-value": spstat.shapiro(df["predicted_concentration(mg/ml)"])[1]
                                           },
                                           "predicted-lipid-content": {
                                               "mean": df["predicted_lipid_per_mg(ug/mg)"].mean(),
                                               "std": df["predicted_lipid_per_mg(ug/mg)"].std(),
                                               "SEM": df["predicted_lipid_per_mg(ug/mg)"].sem(),
                                               "units": "ug/mg",
-                                              "is-normal(p>0.05)": isnormal(df["predicted_lipid_per_mg(ug/mg)"])
+                                              "shapiro-p-value": spstat.shapiro(df["predicted_lipid_per_mg(ug/mg)"])[1]
                                           },
                                           "predicted-depot-lipid-mass": {
                                               "mean": df["predicted_depot_lipid_mass(ug)"].mean(),
                                               "std": df["predicted_depot_lipid_mass(ug)"].std(),
                                               "SEM": df["predicted_depot_lipid_mass(ug)"].sem(),
                                               "units": "ug",
-                                              "is-normal(p>0.05)": isnormal(df["predicted_depot_lipid_mass(ug)"])
+                                              "shapiro-p-value": spstat.shapiro(df["predicted_depot_lipid_mass(ug)"])[1]
                                           },
                                           "N": df.shape[0]
                                          }
@@ -144,13 +147,17 @@ def main():
         if temp.lower() == "warm":
             if mnnn is None:
                 mnnn = fat_rats[f"mean_cell_mass_{c}at(kg)"].iloc[:5].mean()
+            sfac = mnnn*1_000_000
             cell_lipid_mass[f"warm-{c}at"] = \
-                    lipid[f"warm-{c}at"]["predicted-lipid-content"]["mean"]*(mnnn*1_000_000)
+                    {"mean": lipid[f"warm-{c}at"]["predicted-lipid-content"]["mean"]*sfac,
+                     "std": lipid[f"warm-{c}at"]["predicted-lipid-content"]["std"]*sfac}
         else:
             if nmmm is None:
                 nmmm = fat_rats[f"mean_cell_mass_{c}at(kg)"].iloc[5:].mean()
+            sfac = nmmm*1_000_000
             cell_lipid_mass[f"cold-{c}at"] = \
-                    lipid[f"cold-{c}at"]["predicted-lipid-content"]["mean"]*(nmmm*1_000_000)
+                    {"mean": lipid[f"cold-{c}at"]["predicted-lipid-content"]["mean"]*sfac,
+                     "std": lipid[f"cold-{c}at"]["predicted-lipid-content"]["std"]*sfac}
     with open("lipid_summary.json", "w") as f:
         json.dump(lipid, f, indent=4)
     cell_lipid_mass["units"] = "ug"
@@ -158,6 +165,7 @@ def main():
         json.dump(cell_lipid_mass, f, indent=4)
     # ########################################## STATISTICAL ANALYSIS OF LIPIDS
     lipstats = {}
+    bs = []
     for df1, df2, n1, n2 in ((absorbances[0], absorbances[2], abs_names[0], abs_names[2]),
                              (absorbances[1], absorbances[3], abs_names[1], abs_names[3])):
         pfunc(f"One = {n1}\nTwo = {n2}")
@@ -167,17 +175,30 @@ def main():
             pfunc(v1, v2)
             pfunc(type(v1))
             pfunc(type(v1[1]))
-            if v1[1]["is-normal(p>0.05)"] and v2[1]["is-normal(p>0.05)"]:
+            if v1[1]["shapiro-p-value"] > args.shapiro_pvalue and v2[1]["shapiro-p-value"] > args.shapiro_pvalue:
+                pfunc("PERFORMING T-TEST")
                 res = spstat.ttest_ind(df1.iloc[:, idx], df2.iloc[:, idx])
                 lipstats[f"{n1[0].lower()}{n1[1].upper()}AT-{n2[0].lower()}{n2[1].upper()}AT"][v1[0]] = \
                     {"test-type": "t-test", "statistic": res.statistic, "p-value": res.pvalue}
+                bs.append(True)
             else:
+                pfunc("PERFORMING MANN-WHITNEY U-TEST")
                 res = spstat.mannwhitneyu(df1.iloc[:, idx], df2.iloc[:, idx])
                 lipstats[f"{n1[0].lower()}{n1[1].upper()}AT-{n2[0].lower()}{n2[1].upper()}AT"][v1[0]] = \
                     {"test-type": "U-test", "statistic": res.statistic, "p-value": res.pvalue}
+                bs.append(False)
         #for nq in ["predicted-lipid-concentration", "predicted-lipid-content", "predicted-depot-lipid-mass"]:
         #    if lipid[f"{n1[0].lower()}-{n1[1]}at"][nq]["is-normal(p>0.05)"] and lipid[f"{n2[0].lower()}-{n2[1]}at"][nq]["is-normal(p>0.05)"]:
-    with open("lipid_statistics.json", "w") as f:
+    if all(bs):
+        fstatname = "lipid_statistics_t-test.json"
+    elif any(bs):
+        fstatname = "lipid_statistics.json"
+    else:
+        fstatname = "lipid_statistics_U-test.json"
+    pfunc("----------------\n-------------------------\n---------------")
+    pfunc(bs)
+    pfunc(fstatname)
+    with open(fstatname, "w") as f:
         json.dump(lipstats, f, indent=4)
     # ########################################## MEAN PATH
     coords_wat = fat_rats.iloc[:, [5, 6, 8, 9, 11, 12]]
@@ -194,20 +215,45 @@ def main():
     y_23 = (coords["c3_y"] - coords["c2_y"]).to_numpy()
     x_13 = (coords["c3_x"] - coords["c1_x"]).to_numpy()
     y_13 = (coords["c3_y"] - coords["c1_y"]).to_numpy()
+    x_12p = (coords["c2_x"] - coords["c1_x"]).to_numpy()*pixel_size
+    x_23p = (coords["c3_x"] - coords["c2_x"]).to_numpy()*pixel_size
+    y_12p = (coords["c2_y"] - coords["c1_y"]).to_numpy()*pixel_size
+    y_23p = (coords["c3_y"] - coords["c2_y"]).to_numpy()*pixel_size
+    x_13p = (coords["c3_x"] - coords["c1_x"]).to_numpy()*pixel_size
+    y_13p = (coords["c3_y"] - coords["c1_y"]).to_numpy()*pixel_size
+    nnn = x_12.shape[0]
+    assert(all(nnn == sp.shape[0] for sp in [x_23, y_12, y_23, x_13, y_13]))
     x_1, y_1 = np.mean(x_12), np.mean(y_12)
     x_2, y_2 = np.mean(x_23), np.mean(y_23)
     x_t, y_t = x_1 + x_2, y_1 + y_2
+    x_1p, y_1p = np.mean(x_12p), np.mean(y_12p)
+    x_2p, y_2p = np.mean(x_23p), np.mean(y_23p)
+    x_tp, y_tp = x_1p + x_2p, y_1p + y_2p
     pfunc(x_1, y_1)
     pfunc(x_2, y_2)
     pfunc(x_t, y_t)
     x_t, y_t = np.mean(x_13), np.mean(y_13)
     pfunc(x_t, y_t)
-    path = {"x1-x2": {"mean": x_1, "std": np.std(x_12, ddof=1)},
-            "x2-x3": {"mean": x_2, "std": np.std(x_23, ddof=1)},
-            "x1-x3": {"mean": x_t, "std": np.std(x_13, ddof=1)},
-            "y1-y2": {"mean": y_1, "std": np.std(y_12, ddof=1)},
-            "y2-y3": {"mean": y_2, "std": np.std(y_23, ddof=1)},
-            "y1-y3": {"mean": y_t, "std": np.std(y_13, ddof=1)}}
+    pfunc(x_1p, y_1p)
+    pfunc(x_2p, y_2p)
+    pfunc(x_tp, y_tp)
+    x_tp, y_tp = np.mean(x_13p), np.mean(y_13p)
+    pfunc(x_tp, y_tp)
+    path = {"N": nnn}
+    path["pixel-displacement"] = {"x1-x2": {"mean": x_1, "std": np.std(x_12, ddof=1)},
+                                  "x2-x3": {"mean": x_2, "std": np.std(x_23, ddof=1)},
+                                  "x1-x3": {"mean": x_t, "std": np.std(x_13, ddof=1)},
+                                  "y1-y2": {"mean": y_1, "std": np.std(y_12, ddof=1)},
+                                  "y2-y3": {"mean": y_2, "std": np.std(y_23, ddof=1)},
+                                  "y1-y3": {"mean": y_t, "std": np.std(y_13, ddof=1)}}
+    path["physical-displacement"] = {"x1-x2": {"mean": x_1p, "std": np.std(x_12p, ddof=1)},
+                                     "x2-x3": {"mean": x_2p, "std": np.std(x_23p, ddof=1)},
+                                     "x1-x3": {"mean": x_tp, "std": np.std(x_13p, ddof=1)},
+                                     "y1-y2": {"mean": y_1p, "std": np.std(y_12p, ddof=1)},
+                                     "y2-y3": {"mean": y_2p, "std": np.std(y_23p, ddof=1)},
+                                     "y1-y3": {"mean": y_tp, "std": np.std(y_13p, ddof=1)}}
+    path["pixel-displacement-units"] = "unitless (number of pixels)"
+    path["physical-displacemente-units"] = "metres"
     with open("mean_path.json", "w") as f:
         json.dump(path, f, indent=4)
     # #################################### PROTEIN CURVE

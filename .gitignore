@@ -1,6 +1,7 @@
 .idea/
 s397/tma02/links/
 s350/tma02/odir/
+__pycache__/
 
 *.csv
 *.json

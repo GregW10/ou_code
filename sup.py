@@ -9,6 +9,8 @@ MWh = Wh*1_000_000 # (J)
 GWh = Wh*1_000_000_000 # (J)
 TWh = Wh*1_000_000_000_000 # (J)
 
+inst = isinstance
+
 
 # functions
 
@@ -24,6 +26,13 @@ def dec_latlong_to_sex_latlong(latlong: float, rel_tol: float = 1e-9) -> tuple:
     minutes = math.floor(actual_minutes)
     seconds = (actual_minutes - minutes)*60
     return (mult*degrees, minutes + 1, 0.0) if math.isclose(seconds, 60, rel_tol=rel_tol) else (mult*degrees, minutes, seconds)
+
+
+def annuity(principal: float, interest: float, num_payments: int) -> float:
+    if not (inst(principal, float) or inst(principal, int)) or not (inst(interest, float) or inst(interest, int)) or not inst(num_payments, int):
+        raise TypeError("Error: two floats and an int required.")
+    return principal*(interest/(1 - (1 + interest)**(-num_payments)))
+
 
 
 

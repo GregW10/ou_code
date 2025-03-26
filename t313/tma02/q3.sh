@@ -12,29 +12,39 @@ if [ -t 1 ] && [ -t 2 ]; then
     blue="\033[38;5;12m"
     bold="\033[38;5;1m"
     reset="\033[38;5;0m"
-    alias echo="echo -e"
 fi
 
 if [ $# -lt 2 ]; then
-    echo "${red}Error: insufficient command-line arguments."
+    echo -e "${red}Error: insufficient command-line arguments."
     exit 1
 fi
 
-rate=$1
+rate=0.05
+sig=4
 
-vals=("$@")
+vals=()
+
+for val in "$@"; do
+	if [[ "$val" == rate=* ]]; then
+		rate="$(echo -e "$val" | awk -F'=' '{ print $2 '})"
+		continue
+	elif [[ "$val" == sig=* ]]; then
+		sig="$(echo -e "$val" | awk -F'=' '{ print $2 '})"
+		continue
+	fi
+	vals+=("$val")
+done
 
 n=0
 
 sum=0
 
-for val in "${vals[@]:1}"; do
-    pv="$(echo "$val/((1 + $rate)^$n)" | bc -l)"
-    printf "%.2f\n" "$pv"
-    sum="$(echo "$sum + $pv" | bc -l)"
+for val in "${vals[@]}"; do
+    pv="$(echo -e "$val/((1 + $rate)^$n)" | bc -l)"
+    printf "%.${sig}g\n" "$pv"
+    sum="$(echo -e "$sum + $pv" | bc -l)"
     ((++n))
 done
 
-printf "\n%.2f\n" "$sum"
-
+printf "\n%.${sig}g\n" "$sum"
 

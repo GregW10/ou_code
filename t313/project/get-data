@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+
+
+import requests
+import json
+import os
+
+home = os.path.expanduser("~")
+
+pp = os.getenv("VEGGIEPATH")
+
+with open(pp, "r") as f:
+    api_key = f.read()
+
+with open(f"{home}/veggieboy.email", "r") as f:
+    email = f.read()
+
+lat, lng = (-14.020047, -70.711640)
+
+url = f"https://developer.nrel.gov/api/nsrdb/v2/solar/nsrdb-GOES-tmy-v4-0-0-download.csv?api_key={api_key}"
+
+def main():
+    payload = {
+        "api_key": api_key,
+        "wkt": f"POINT({lng} {lat})",
+        "names": "tmy",
+        "email": email,
+        "attributes": "air_temperature,relative_humidity,solar_zenith_angle,surface_albedo,surface_pressure,total_precipitable_water,wind_direction,wind_speed",
+        "interval": 60
+    }
+    # headers = {
+    #     "content-type": "application/json"
+    # }
+    response = requests.post(url, data=payload)#, headers=headers, data=payload)
+    # print(response.headers)
+    print(response.text)
+
+
+if __name__ == "__main__":
+    main()

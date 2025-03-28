@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import argparse
+import json
+import time
+import sys
+import os
+
+irrun = r"\si{\watt\per\meter\squared}"
+
+metvars = {"Temperature": r"\si{\degree}C",
+           "Relative Humidity": "\\%",
+           "DHI": irrun,
+           "DNI": irrun,
+           "GHI": irrun,
+           "Solar Zenith Angle": r"\si{\degree}",
+           "Surface Albedo": "",
+           "Pressure": r"\si{\milli\bar}",
+           "Precipitable Water": r"\si{\centi\meter}",
+           "Wind Speed": r"\si{\meter\per\second}"}
+
+desired = {"Temperature": "c",
+           "Relative Humidity": "%",
+           "DHI": "w/m2",
+           "DNI": "w/m2",
+           "GHI": "w/m2",
+           "Solar Zenith Angle": "degree",
+           "Surface Albedo": "n/a",
+           "Pressure": "mbar",
+           "Precipitable Water": "cm",
+           "Wind Speed": "m/s"}
+
+
+def main():
+    global metvars
+    plt.rcParams["text.usetex"] = True
+    plt.rcParams["font.family"] = "serif"
+    plt.rcParams["text.latex.preamble"] = r"\usepackage{siunitx}\usepackage{amsmath}\usepackage{amssymb}\DeclareSIUnit{\degree}{^{\circ}}"
+    parser = argparse.ArgumentParser(prog="plotter")
+    parser.add_argument("data_path")
+    parser.add_argument("-i", "--info-path", default=None)
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("-o", "--outfile", default="summary.json")
+    parser.add_argument("-r", "--plot-range", action="store_true")
+    args = parser.parse_args()
+    data = pd.read_csv(args.data_path)
+    if args.info_path:
+        with open(args.info_path, "r") as f:
+            lines = f.readlines()
+        if (llen := len(lines)) != 2:
+            print(f"Error: invalid info-file format (expected 2 lines, got {llen}).", file=sys.stderr)
+            sys.exit(1)
+        variables = lines[0].split(',')
+        units = lines[1].split(',')
+        if (lv := len(variables)) != (lu := len(units)):
+            print(f"Error: invalid info-file format (mismatched number of fields ({lv}) to values ({lu})).")
+        actual = {var.lower(): un.lower() for (var, un) in zip(variables, units)}
+        matched = True
+        for k, v in desired.items():
+            if v != actual[f"{k.lower()} units"]:
+                # print(f"No match between {v} and {actual[f'{k.lower()} units']}")
+                matched = False
+                desired[k] = actual[f"{k.lower()} units"]
+        if not matched:
+            # print("DID NOT MATCH!!\nNOOOOOOOOOO")
+            metvars = desired
+    if args.verbose:
+        pfunc = print
+    else:
+        pfunc = lambda x: None
+    pfunc(data)
+    print(metvars)
+    by_month = {var: {"mins": np.empty((12,)), "maxes": np.empty((12,)), "means": np.empty((12,)), "stds": np.empty((12,))} for var in metvars}
+    by_hour   = {var: {"mins": np.empty((24,)), "maxes": np.empty((24,)), "means": np.empty((24,)), "stds": np.empty((24,))} for var in metvars}
+    for month in range(12):
+        df = data[data["Month"] == (month + 1)]
+        for var in by_month:
+            by_month[var]["mins"][month] = df[var].min()
+            by_month[var]["maxes"][month] = df[var].max()
+            by_month[var]["means"][month] = df[var].mean()
+            by_month[var]["stds"][month] = df[var].std()
+    for hour in range(24):
+        df = data[data["Hour"] == (hour + 1)]
+        for var in by_hour:
+            by_hour[var]["mins"][hour] = df[var].min()
+            by_hour[var]["maxes"][hour] = df[var].max()
+            by_hour[var]["means"][hour] = df[var].mean()
+            by_hour[var]["stds"][hour] = df[var].std()
+    summary = {}
+    dr = f"analysis-{int(time.time())}"
+    os.makedirs(f"{dr}/figs", exist_ok=True)
+    os.makedirs(f"{dr}/stats", exist_ok=True)
+    for var, unit in metvars.items():
+        for (md, x, name, r) in ((by_month, np.arange(1, 13, 1, dtype=np.uint8), "Month", range(1, 13)), (by_hour, np.arange(1, 25, 1, dtype=np.uint8), "Hour", range(0, 24))):
+            fig, ax = plt.subplots()
+            ax.plot(x, md[var]["means"], marker="x", markeredgecolor="green", markerfacecolor="green")
+            if args.plot_range:
+                ax.errorbar(x, md[var]["means"], yerr=(md[var]["means"] - md[var]["mins"], md[var]["maxes"] - md[var]["means"]), fmt='', capsize=5.0)
+            ax.set_title(f"Mean {var} by {name}")
+            ax.set_xlabel(f"{name}")
+            ax.set_ylabel(f"{var}" + (f" (\\({unit}\\))" if unit else ""))
+            fig.savefig(f"{dr}/figs/{var.lower().replace(' ', '-')}-by-{name.lower()}.pdf")
+            with open(f"{dr}/stats/{var.lower().replace(' ', '-')}-by-{name.lower()}-data.csv", "w") as f:
+                f.write(f"{name.lower()},mean,std,min,max\n")
+                for num in r:
+                    f.write(f"{num},{md[var]['means'][num - 1]},{md[var]['stds'][num - 1]},{md[var]['mins'][num - 1]},{md[var]['maxes'][num - 1]}\n")
+        summary[var] = {"min": data[var].min(),
+                        "max": data[var].max(),
+                        "mean": data[var].mean(),
+                        "std": data[var].std()}
+    with open(f"{dr}/stats/{args.outfile}", "w") as f:
+        json.dump(summary, f, indent=4)
+
+
+if __name__ == "__main__":
+    main()

@@ -3,13 +3,16 @@
 
 import requests
 import json
+import sys
 import os
 
 home = os.path.expanduser("~")
 
-pp = os.getenv("VEGGIEPATH")
+if home != os.getenv("HOME"):
+    print("Your \"HOME\" environment variable does not expand to the same directory as \"~\"! That's weird. Bye-bye.", file=sys.stderr)
+    sys.exit(1)
 
-with open(pp, "r") as f:
+with open(os.getenv("VEGGIEFAT"), "r") as f:
     api_key = f.read()
 
 with open(f"{home}/veggieboy.email", "r") as f:
@@ -25,13 +28,17 @@ def main():
         "wkt": f"POINT({lng} {lat})",
         "names": "tmy",
         "email": email,
-        "attributes": "air_temperature,relative_humidity,solar_zenith_angle,surface_albedo,surface_pressure,total_precipitable_water,wind_direction,wind_speed",
-        "interval": 60
+        "attributes": "air_temperature,relative_humidity,dhi,dni,ghi,solar_zenith_angle,surface_albedo,surface_pressure,total_precipitable_water,wind_direction,wind_speed",
+        "interval": "60",
+        "utc": "false" # I want timestamps in Peru's local time, not UTC
     }
     # headers = {
     #     "content-type": "application/json"
     # }
     response = requests.post(url, data=payload)#, headers=headers, data=payload)
+    if response.status_code != 200:
+        print(f"Something went wrong.\nHeaders:\n--------\n{response.headers}\n--------\nContent:\n--------\n{response.text}\n--------", file=sys.stderr)
+        sys.exit(1)
     # print(response.headers)
     print(response.text)
 

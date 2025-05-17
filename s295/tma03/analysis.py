@@ -23,6 +23,7 @@ sha512 = f"{endpoint}.sha512"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--observation-time", default=20)
+    parser.add_argument("-s", "--summary", default="summary.json")
     args = parser.parse_args()
     r = requests.get(endpoint)
     if r.status_code != 200:
@@ -68,15 +69,31 @@ def main():
                    "statistic": res.statistic,
                    "p-value": res.pvalue}, f, indent=4)
     # print(plt.rcParams)
+    means = [df["recPeriod1-pollinations"].mean(), df["recPeriod2-pollinations"].mean()]
+    stds  = [df["recPeriod1-pollinations"].std(),  df["recPeriod2-pollinations"].std()]
+    sems  = [df["recPeriod1-pollinations"].sem(),  df["recPeriod2-pollinations"].sem()]
+    with open(args.summary, "w") as f:
+        json.dump({
+                "rec-period-1": {
+                        "N":    df.shape[0],
+                        "mean": means[0],
+                        "std":  stds[0],
+                        "sem":  sems[0]
+                    },
+                "rec-period-2": {
+                        "N":    df.shape[0],
+                        "mean": means[1],
+                        "std":  stds[1],
+                        "sem":  sems[1]
+                    }
+            }, f, indent=4)
     plt.rcParams["text.usetex"] = True
     plt.rcParams["text.latex.preamble"] = r"\usepackage{siunitx}\usepackage{amsmath}"
     plt.rcParams["font.family"] = "serif"
-    bars = [df["recPeriod1-pollinations"].mean(), df["recPeriod2-pollinations"].mean()]
     fig, ax = plt.subplots()
-    ax.bar(["Morning", "Afternoon"], bars)
-    ax.errorbar(["Morning", "Afternoon"], bars,
-                yerr=[df["recPeriod1-pollinations"].sem(),
-                      df["recPeriod2-pollinations"].sem()],
+    ax.bar(["Morning", "Afternoon"], means)
+    ax.errorbar(["Morning", "Afternoon"], means,
+                yerr=sems,
                 fmt="none", capsize=10, color="red", label="SEM")
     ax.set_title("Mean Number of Pollination Events per $\\SI{" + str(args.observation_time) + "}{\\minute}$\nin Morning vs Afternoon")
     ax.set_xlabel("Time Period")
@@ -91,3 +108,5 @@ if __name__ == "__main__":
 
 
 # nonce=69352010
+
+# nonce=133805876

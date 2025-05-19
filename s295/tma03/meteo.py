@@ -11,7 +11,7 @@ def main():
     daily = ms.Daily(point,
                      datetime.datetime(2025, 4, 25),
                      datetime.datetime(2025, 5,  5))
-    print(daily.stations)
+    # print(daily.stations)
     station = ms.Stations().nearby(park[0], park[1]).fetch(1)
     station.to_csv("station.csv")
     data = daily.fetch()
@@ -21,3 +21,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# nonce=756530048

@@ -64,10 +64,12 @@ def main():
         fname = "mann-whitney-u.json"
     res = test(df["recPeriod1-pollinations"],
                df["recPeriod2-pollinations"])
+    # print(res)
     with open(fname, "w") as f:
         json.dump({"N": df.shape[0],
                    "statistic": res.statistic,
-                   "p-value": res.pvalue}, f, indent=4)
+                   "p-value": res.pvalue,
+                   "df": res.df}, f, indent=4)
     # print(plt.rcParams)
     means = [df["recPeriod1-pollinations"].mean(), df["recPeriod2-pollinations"].mean()]
     stds  = [df["recPeriod1-pollinations"].std(),  df["recPeriod2-pollinations"].std()]
@@ -106,7 +108,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-
-# nonce=69352010
-
-# nonce=133805876
+# nonce=6803647219
